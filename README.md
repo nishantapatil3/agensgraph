@@ -61,10 +61,17 @@ docker buildx create --use
 docker buildx build --platform linux/amd64,linux/arm64 -t agensgraph:latest .
 ```
 
+To build a specific AgensGraph version:
+
+```bash
+docker build --build-arg AGENSGRAPH_VERSION=v2.17.0 -t agensgraph:v2.17.0 .
+```
+
 ## Automated Builds
 
 The GitHub Actions workflow automatically builds and pushes images:
-- On push to `main` branch
-- On version tags (e.g., `v2.16.0`)
-- On pull requests (build only, no push)
+- On version tags (e.g., `v2.16.0`) - builds matching AgensGraph version
+- On GitHub releases
 - Manual trigger via workflow dispatch
+
+The workflow automatically detects the version from the Git tag and builds that specific AgensGraph version.

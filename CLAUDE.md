@@ -68,11 +68,15 @@ Requires repository secrets:
 - Pin AgensGraph version in git clone command
 
 ### Updating AgensGraph Version
-To update to a new AgensGraph version:
-1. Update the version tag in Dockerfile line 6: `--branch v2.16.0`
-2. Test the build locally
-3. Create a git tag matching the AgensGraph version (e.g., `v2.16.0`)
-4. Push the tag to trigger automated build and release
+To release a new AgensGraph version:
+1. Create and push a git tag matching the AgensGraph version (e.g., `v2.17.0`)
+   ```bash
+   git tag -a v2.17.0 -m "Release AgensGraph v2.17.0"
+   git push origin v2.17.0
+   ```
+2. The workflow will automatically build that specific AgensGraph version
+3. The Dockerfile accepts `AGENSGRAPH_VERSION` as a build argument (defaults to v2.16.0)
+4. Test locally with: `docker build --build-arg AGENSGRAPH_VERSION=v2.17.0 -t agensgraph:test .`
 
 ### GitHub Actions Workflow Modifications
 - The workflow uses digest-based approach for true multiplatform images
