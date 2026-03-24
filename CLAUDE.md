@@ -17,6 +17,7 @@ This repository builds and publishes multiplatform Docker images for AgensGraph,
 ```
 .
 ├── Dockerfile                          # Multiplatform Dockerfile with version argument
+├── Taskfile.yaml                      # Task runner for local development
 ├── .github/workflows/
 │   └── build-multiplatform.yml        # GitHub Actions workflow for CI/CD
 ├── CLAUDE.md                          # Context file for Claude (this file)
@@ -152,6 +153,41 @@ Available upstream versions include: v2.16.0 (latest), v2.15.0, v2.14.1, v2.13.1
 - The merge job combines digests into a single manifest list
 - Maintain this pattern for optimal build parallelization
 
+## Local Development with Taskfile
+
+This repository includes a Taskfile.yaml for streamlined local development. [Task](https://taskfile.dev/) is a task runner similar to Make but uses YAML.
+
+### Quick Reference
+
+```bash
+# Build and test
+task build              # Build for current platform
+task test               # Build and run tests
+task test:full          # Full integration tests
+
+# Run locally
+task run                # Start container on port 5432
+task psql               # Connect with psql
+task logs               # View logs
+task stop               # Stop and remove container
+
+# Multiplatform
+task build:multiplatform   # Build for amd64 and arm64
+
+# Version management
+task build:version -- v2.15.0  # Build specific version
+task tag:create -- v2.16.0     # Create and push tag
+task check:upstream            # Check upstream releases
+
+# Cleanup
+task clean              # Remove built images
+task clean:all          # Remove everything
+
+# Help
+task --list            # List all tasks
+task help              # Detailed help
+```
+
 ## Common Tasks
 
 ### Releasing a New Version
@@ -181,12 +217,29 @@ Available upstream versions include: v2.16.0 (latest), v2.15.0, v2.14.1, v2.13.1
 
 ### Building Locally
 
-**Single platform** (faster for testing):
+**Using Taskfile** (recommended):
+```bash
+# Quick build for testing
+task build
+
+# Build specific version
+task build:version -- v2.15.0
+
+# Multiplatform build
+task build:multiplatform
+
+# Build and test
+task test
+```
+
+**Using Docker directly**:
+
+Single platform (faster for testing):
 ```bash
 docker build --build-arg AGENSGRAPH_VERSION=v2.16.0 -t agensgraph:test .
 ```
 
-**Multiplatform** (requires buildx):
+Multiplatform (requires buildx):
 ```bash
 docker buildx create --use --name multiplatform-builder
 docker buildx build \
@@ -197,6 +250,26 @@ docker buildx build \
 ```
 
 ### Testing the Image
+
+**Using Taskfile**:
+```bash
+# Basic tests
+task test
+
+# Full integration tests
+task test:full
+
+# Verify image works
+task verify
+
+# Manual testing
+task run                # Start container
+task psql               # Connect with psql
+task logs               # View logs
+task stop               # Clean up
+```
+
+**Using Docker directly**:
 ```bash
 # Start AgensGraph container
 docker run -d --name agensgraph-test \
@@ -240,6 +313,24 @@ gh run view <run-id> --repo pinaka-io/agensgraph --log-failed
 ```
 
 ### Managing Tags
+
+**Using Taskfile**:
+```bash
+# Create and push a tag
+task tag:create -- v2.16.0
+
+# Delete a tag (local and remote)
+task tag:delete -- v2.16.0
+
+# Check upstream releases
+task check:upstream
+
+# Check build status
+task check:builds
+task watch:build
+```
+
+**Using Git directly**:
 ```bash
 # List all tags
 git tag -l

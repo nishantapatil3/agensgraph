@@ -62,17 +62,39 @@ docker run -d \
 
 ## Building Locally
 
-To build multiplatform images locally:
+### Using Task (Recommended)
 
+Install [Task](https://taskfile.dev/) and use the provided Taskfile:
+
+```bash
+# Quick build for current platform
+task build
+
+# Build and test
+task test
+
+# Run locally
+task run
+
+# Build specific version
+task build:version -- v2.15.0
+
+# See all available tasks
+task --list
+task help
+```
+
+### Using Docker directly
+
+Build for current platform:
+```bash
+docker build --build-arg AGENSGRAPH_VERSION=v2.16.0 -t agensgraph:latest .
+```
+
+Build multiplatform:
 ```bash
 docker buildx create --use
 docker buildx build --platform linux/amd64,linux/arm64 -t agensgraph:latest .
-```
-
-To build a specific AgensGraph version:
-
-```bash
-docker build --build-arg AGENSGRAPH_VERSION=v2.15.0 -t agensgraph:v2.15.0 .
 ```
 
 **Note**: Always use official upstream versions from https://github.com/skaiworldwide-oss/agensgraph/releases

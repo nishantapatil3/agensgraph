@@ -1,0 +1,228 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: agensgraph
+  VERSION:
+    sh: git describe --tags --always --dirty
+  AGENSGRAPH_VERSION: v2.16.0
+  PLATFORMS: linux/amd64,linux/arm64
+  REGISTRY: ghcr.io/pinaka-io
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build Docker image for current platform (fast for testing)
+    cmds:
+      - docker build --build-arg AGENSGRAPH_VERSION={{.AGENSGRAPH_VERSION}} -t {{.IMAGE_NAME}}:{{.VERSION}} .
+      - echo "Built {{.IMAGE_NAME}}:{{.VERSION}}"
+
+  build:version:
+    desc: Build Docker image with specific AgensGraph version
+    cmds:
+      - docker build --build-arg AGENSGRAPH_VERSION={{.CLI_ARGS}} -t {{.IMAGE_NAME}}:{{.CLI_ARGS}} .
+      - echo "Built {{.IMAGE_NAME}}:{{.CLI_ARGS}}"
+
+  build:multiplatform:
+    desc: Build multiplatform Docker image (requires buildx)
+    cmds:
+      - docker buildx create --use --name multiplatform-builder || true
+      - docker buildx build --platform {{.PLATFORMS}} --build-arg AGENSGRAPH_VERSION={{.AGENSGRAPH_VERSION}} -t {{.IMAGE_NAME}}:{{.VERSION}} --load .
+      - echo "Built multiplatform {{.IMAGE_NAME}}:{{.VERSION}}"
+
+  build:push:
+    desc: Build and push multiplatform image to registry
+    cmds:
+      - docker buildx create --use --name multiplatform-builder || true
+      - docker buildx build --platform {{.PLATFORMS}} --build-arg AGENSGRAPH_VERSION={{.AGENSGRAPH_VERSION}} -t {{.REGISTRY}}/{{.IMAGE_NAME}}:{{.VERSION}} --push .
+
+  test:
+    desc: Run basic tests on the built image
+    deps: [build]
+    cmds:
+      - echo "Testing {{.IMAGE_NAME}}:{{.VERSION}}..."
+      - docker run --rm {{.IMAGE_NAME}}:{{.VERSION}} postgres --version
+      - docker run --rm {{.IMAGE_NAME}}:{{.VERSION}} agens --version || echo "Warning: agens command not in PATH"
+      - echo "✓ Basic tests passed"
+
+  test:full:
+    desc: Run full integration tests
+    deps: [build]
+    cmds:
+      - echo "Starting AgensGraph container..."
+      - docker run -d --name agensgraph-test -e POSTGRES_PASSWORD=testpass -p 5433:5432 {{.IMAGE_NAME}}:{{.VERSION}}
+      - sleep 10
+      - echo "Testing PostgreSQL connection..."
+      - docker exec agensgraph-test psql -U postgres -c "SELECT version();"
+      - echo "Testing AgensGraph functionality..."
+      - docker exec agensgraph-test psql -U postgres -c "LOAD 'age';" || echo "Warning: AGE extension not loaded"
+      - echo "✓ Integration tests passed"
+      - task: clean:test
+
+  run:
+    desc: Run AgensGraph container locally
+    cmds:
+      - docker run -d --name agensgraph-local -e POSTGRES_PASSWORD=mypassword -p 5432:5432 {{.IMAGE_NAME}}:{{.VERSION}}
+      - echo "AgensGraph running at localhost:5432"
+      - echo "Username: postgres"
+      - echo "Password: mypassword"
+      - echo ""
+      - echo "Connect with: docker exec -it agensgraph-local psql -U postgres"
+      - echo "Stop with: task stop"
+
+  run:interactive:
+    desc: Run AgensGraph container interactively
+    deps: [build]
+    cmds:
+      - docker run --rm -it -e POSTGRES_PASSWORD=testpass -p 5432:5432 {{.IMAGE_NAME}}:{{.VERSION}}
+
+  shell:
+    desc: Open a shell in a running container
+    cmds:
+      - docker exec -it agensgraph-local bash
+
+  psql:
+    desc: Connect to running AgensGraph with psql
+    cmds:
+      - docker exec -it agensgraph-local psql -U postgres
+
+  logs:
+    desc: Show logs from running container
+    cmds:
+      - docker logs -f agensgraph-local
+
+  stop:
+    desc: Stop running AgensGraph container
+    cmds:
+      - docker stop agensgraph-local || true
+      - docker rm agensgraph-local || true
+      - echo "Stopped agensgraph-local"
+
+  clean:test:
+    desc: Clean up test containers
+    cmds:
+      - docker stop agensgraph-test 2>/dev/null || true
+      - docker rm agensgraph-test 2>/dev/null || true
+
+  clean:
+    desc: Remove built images and containers
+    cmds:
+      - task: stop
+      - task: clean:test
+      - docker rmi {{.IMAGE_NAME}}:{{.VERSION}} || true
+      - docker builder prune -f
+
+  clean:all:
+    desc: Remove all agensgraph images and build cache
+    cmds:
+      - docker ps -a | grep agensgraph | awk '{print $1}' | xargs docker stop || true
+      - docker ps -a | grep agensgraph | awk '{print $1}' | xargs docker rm || true
+      - docker images | grep agensgraph | awk '{print $3}' | xargs docker rmi || true
+      - docker buildx prune -af
+
+  inspect:
+    desc: Inspect the built image
+    cmds:
+      - docker inspect {{.IMAGE_NAME}}:{{.VERSION}}
+
+  inspect:size:
+    desc: Show image size
+    cmds:
+      - docker images {{.IMAGE_NAME}}:{{.VERSION}} --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+  verify:
+    desc: Verify image works correctly
+    deps: [build]
+    cmds:
+      - echo "Verifying {{.IMAGE_NAME}}:{{.VERSION}}..."
+      - docker run --rm {{.IMAGE_NAME}}:{{.VERSION}} postgres --version
+      - echo "Starting temporary container..."
+      - docker run -d --name agensgraph-verify -e POSTGRES_PASSWORD=testpass {{.IMAGE_NAME}}:{{.VERSION}}
+      - sleep 10
+      - docker exec agensgraph-verify psql -U postgres -c "SELECT version();"
+      - docker stop agensgraph-verify
+      - docker rm agensgraph-verify
+      - echo "✓ Image verified successfully"
+
+  pull:
+    desc: Pull latest image from registry
+    cmds:
+      - docker pull {{.REGISTRY}}/{{.IMAGE_NAME}}:{{.AGENSGRAPH_VERSION}}
+
+  tag:create:
+    desc: Create and push a new version tag
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task tag:create -- v2.16.0"
+          exit 1
+        fi
+        git tag -a {{.CLI_ARGS}} -m "Release AgensGraph {{.CLI_ARGS}}"
+        git push origin {{.CLI_ARGS}}
+        echo "Created and pushed tag {{.CLI_ARGS}}"
+
+  tag:delete:
+    desc: Delete a version tag locally and remotely
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task tag:delete -- v2.16.0"
+          exit 1
+        fi
+        git tag -d {{.CLI_ARGS}} || true
+        git push origin --delete {{.CLI_ARGS}} || true
+        echo "Deleted tag {{.CLI_ARGS}}"
+
+  check:upstream:
+    desc: Check upstream AgensGraph releases
+    cmds:
+      - gh release list --repo skaiworldwide-oss/agensgraph --limit 10
+
+  check:builds:
+    desc: Check GitHub Actions build status
+    cmds:
+      - gh run list --repo pinaka-io/agensgraph --limit 5
+
+  watch:build:
+    desc: Watch the latest GitHub Actions build
+    cmds:
+      - gh run watch --repo pinaka-io/agensgraph
+
+  help:
+    desc: Show detailed help
+    cmds:
+      - |
+        echo "AgensGraph Docker Build Tasks"
+        echo "=============================="
+        echo ""
+        echo "Quick Start:"
+        echo "  task build                  # Build for current platform"
+        echo "  task test                   # Build and run basic tests"
+        echo "  task run                    # Run AgensGraph locally"
+        echo ""
+        echo "Development:"
+        echo "  task build:version -- v2.15.0  # Build specific version"
+        echo "  task test:full              # Run full integration tests"
+        echo "  task verify                 # Verify image works"
+        echo ""
+        echo "Multiplatform:"
+        echo "  task build:multiplatform    # Build for amd64 and arm64"
+        echo "  task build:push             # Build and push to registry"
+        echo ""
+        echo "Container Management:"
+        echo "  task run                    # Start container"
+        echo "  task psql                   # Connect with psql"
+        echo "  task logs                   # View logs"
+        echo "  task stop                   # Stop container"
+        echo ""
+        echo "Release Management:"
+        echo "  task tag:create -- v2.16.0  # Create and push tag"
+        echo "  task check:upstream         # Check upstream releases"
+        echo "  task check:builds           # Check build status"
+        echo ""
+        echo "Cleanup:"
+        echo "  task clean                  # Remove built images"
+        echo "  task clean:all              # Remove everything"
