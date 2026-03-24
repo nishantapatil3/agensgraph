@@ -16,27 +16,48 @@ This repository builds and publishes multiplatform Docker images for AgensGraph,
 
 ```
 .
-├── Dockerfile                          # Multiplatform Dockerfile for AgensGraph
+├── Dockerfile                          # Multiplatform Dockerfile with version argument
 ├── .github/workflows/
 │   └── build-multiplatform.yml        # GitHub Actions workflow for CI/CD
+├── CLAUDE.md                          # Context file for Claude (this file)
 └── README.md                          # User documentation
 ```
+
+## Current Status
+
+### Released Versions
+- **v2.16.0**: Initial release with multiplatform support (linux/amd64, linux/arm64)
+
+### Repository
+- **Organization**: https://github.com/pinaka-io
+- **Repository**: https://github.com/pinaka-io/agensgraph
+- **Container Images**: https://github.com/pinaka-io/agensgraph/pkgs/container/agensgraph
+
+### Workflow History
+- Initial workflow had syntax errors (invalid Docker Hub references, artifact naming issues)
+- Fixed in commit c9abd97 by removing Docker Hub and fixing artifact names
+- Added package permissions in commit 16ccc07
+- Changed triggers to tags/releases only in commit cddb307
+- Made version dynamic based on Git tags in commit 5075f02
 
 ## Key Technologies
 
 - **Base Image**: postgres:16-bookworm
-- **AgensGraph Version**: v2.16.0 (from https://github.com/skaiworldwide-oss/agensgraph)
+- **AgensGraph Version**: Dynamic, based on Git tag (defaults to v2.16.0)
 - **Build System**: Docker Buildx with QEMU for cross-platform compilation
 - **CI/CD**: GitHub Actions
-- **Container Registries**: GitHub Container Registry (GHCR) and Docker Hub
+- **Container Registry**: GitHub Container Registry (GHCR)
 
 ## Build Process
 
 The Dockerfile:
-1. Starts from PostgreSQL 16 on Debian Bookworm
-2. Installs build dependencies (build-essential, libreadline-dev, zlib1g-dev, etc.)
-3. Clones AgensGraph v2.16.0 from GitHub
-4. Compiles AgensGraph from source using `./configure && make && make install`
+1. Accepts `AGENSGRAPH_VERSION` build argument (defaults to v2.16.0)
+2. Starts from PostgreSQL 16 on Debian Bookworm
+3. Installs build dependencies (build-essential, libreadline-dev, zlib1g-dev, flex, bison, git, libicu-dev, pkg-config)
+4. Clones AgensGraph from GitHub at the specified version tag
+5. Compiles AgensGraph from source using `./configure && make -j$(nproc) && make install`
+
+The version is dynamically set during the build based on the Git tag that triggered the workflow.
 
 ## Supported Platforms
 
@@ -46,27 +67,59 @@ The Dockerfile:
 ## GitHub Actions Workflow
 
 The CI/CD pipeline (`build-multiplatform.yml`):
-- Builds images for each platform in parallel using matrix strategy
-- Uses QEMU for cross-platform emulation
-- Employs GitHub Actions cache for faster builds
-- Creates multi-arch manifest lists
-- Publishes to GHCR automatically and Docker Hub optionally
-- Triggers on:
-  - Push to main branch → `latest` tag
-  - Version tags (v*) → semantic version tags
-  - Pull requests → build only, no push
-  - Manual workflow dispatch
+
+### Architecture
+- **Matrix Strategy**: Builds linux/amd64 and linux/arm64 in parallel
+- **Digest-Based Approach**: Each platform builds separately and uploads digests
+- **Manifest Merging**: Final job combines digests into a single multi-arch manifest
+- **QEMU Emulation**: Enables cross-platform compilation on GitHub runners
+- **GitHub Actions Cache**: Speeds up subsequent builds
+
+### Triggers
+- **Version tags (v\*)**: Automatically builds matching AgensGraph version
+- **GitHub Releases**: Builds when a release is published
+- **Manual dispatch**: Can be triggered manually via Actions UI
+
+**Note**: Does NOT trigger on pushes to main to conserve CI resources.
+
+### Permissions
+```yaml
+permissions:
+  contents: read
+  packages: write
+```
+Required for pushing images to GitHub Container Registry (GHCR).
+
+### Workflow Steps
+1. **Extract version from tag**: Determines AgensGraph version from Git tag
+2. **Build jobs** (parallel for each platform):
+   - Checkout code
+   - Set up QEMU for emulation
+   - Configure Docker Buildx
+   - Login to GHCR
+   - Build image with version-specific build argument
+   - Push by digest (not by tag yet)
+   - Upload digest as artifact
+3. **Merge job**:
+   - Download all digests
+   - Create multi-arch manifest combining all platforms
+   - Push final manifest with proper tags
+   - Inspect and verify the image
 
 ## Container Registry Configuration
 
 ### GitHub Container Registry (GHCR)
-- Automatically configured via `GITHUB_TOKEN`
-- Images published to: `ghcr.io/<owner>/<repo>`
+- **Authentication**: Automatically configured via `GITHUB_TOKEN`
+- **Image Location**: `ghcr.io/pinaka-io/agensgraph`
+- **Visibility**: Public (matches repository visibility)
+- **Tags Generated**:
+  - `vX.Y.Z` - Semantic version matching Git tag (e.g., `v2.16.0`)
+  - `vX.Y` - Major.minor version (e.g., `v2.16`)
+  - `vX` - Major version (e.g., `v2`)
+  - `latest` - Latest build from default branch (currently disabled since we don't build on main)
 
-### Docker Hub (Optional)
-Requires repository secrets:
-- `DOCKERHUB_USERNAME`: Docker Hub username
-- `DOCKERHUB_TOKEN`: Docker Hub access token
+### Docker Hub
+Docker Hub publishing has been removed from the workflow to simplify the setup. GHCR is sufficient for public distribution.
 
 ## Development Guidelines
 
@@ -101,26 +154,129 @@ Available upstream versions include: v2.16.0 (latest), v2.15.0, v2.14.1, v2.13.1
 
 ## Common Tasks
 
+### Releasing a New Version
+
+1. **Check upstream releases first**:
+   ```bash
+   gh release list --repo skaiworldwide-oss/agensgraph --limit 10
+   ```
+
+2. **Create and push a tag matching the upstream version**:
+   ```bash
+   # Example for v2.15.0
+   git tag -a v2.15.0 -m "Release AgensGraph v2.15.0"
+   git push origin v2.15.0
+   ```
+
+3. **Monitor the build**:
+   ```bash
+   gh run watch --repo pinaka-io/agensgraph
+   ```
+
+4. **Verify the image**:
+   ```bash
+   docker pull ghcr.io/pinaka-io/agensgraph:v2.15.0
+   docker run --rm ghcr.io/pinaka-io/agensgraph:v2.15.0 agens --version
+   ```
+
 ### Building Locally
+
+**Single platform** (faster for testing):
 ```bash
-docker buildx create --use
-docker buildx build --platform linux/amd64,linux/arm64 -t agensgraph:test .
+docker build --build-arg AGENSGRAPH_VERSION=v2.16.0 -t agensgraph:test .
+```
+
+**Multiplatform** (requires buildx):
+```bash
+docker buildx create --use --name multiplatform-builder
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --build-arg AGENSGRAPH_VERSION=v2.16.0 \
+  -t agensgraph:test \
+  --load .
 ```
 
 ### Testing the Image
 ```bash
+# Start AgensGraph container
 docker run -d --name agensgraph-test \
   -e POSTGRES_PASSWORD=testpass \
   -p 5432:5432 \
-  agensgraph:test
+  ghcr.io/pinaka-io/agensgraph:v2.16.0
+
+# Check logs
+docker logs agensgraph-test
+
+# Connect with psql
+docker exec -it agensgraph-test psql -U postgres
+
+# Test graph functionality
+docker exec -it agensgraph-test psql -U postgres -c "SELECT version();"
+
+# Clean up
+docker stop agensgraph-test && docker rm agensgraph-test
 ```
 
 ### Triggering Manual Build
-- Go to Actions → Build and Push Multiplatform Images → Run workflow
+```bash
+# Via GitHub CLI
+gh workflow run build-multiplatform.yml --repo pinaka-io/agensgraph
+
+# Or via web UI:
+# https://github.com/pinaka-io/agensgraph/actions/workflows/build-multiplatform.yml
+# Click "Run workflow"
+```
+
+### Checking Build Status
+```bash
+# List recent runs
+gh run list --repo pinaka-io/agensgraph --limit 5
+
+# Watch a specific run
+gh run watch <run-id> --repo pinaka-io/agensgraph
+
+# View logs for failed run
+gh run view <run-id> --repo pinaka-io/agensgraph --log-failed
+```
+
+### Managing Tags
+```bash
+# List all tags
+git tag -l
+
+# Delete a local tag
+git tag -d v2.16.0
+
+# Delete a remote tag (this will NOT stop an in-progress build)
+git push origin --delete v2.16.0
+
+# Retag (if you need to fix something)
+git tag -d v2.16.0
+git push origin --delete v2.16.0
+git tag -a v2.16.0 -m "Release AgensGraph v2.16.0"
+git push origin v2.16.0
+```
 
 ## Important Notes
 
-- Build times: ARM64 builds take significantly longer due to QEMU emulation
-- The compilation step (`make -j$(nproc)`) is resource-intensive
-- GitHub Actions runners have 2-core CPUs, so builds may take 15-30 minutes per platform
-- GHCR images are public by default if the repository is public
+### Build Performance
+- **ARM64 builds**: Take significantly longer (15-30 minutes) due to QEMU emulation
+- **Compilation**: The `make -j$(nproc)` step is CPU-intensive
+- **GitHub Runners**: Free tier has 2-core CPUs, which limits parallelization
+- **Total build time**: Expect 20-40 minutes for both platforms combined
+
+### Registry & Permissions
+- **GHCR visibility**: Images are public by default since the repository is public
+- **Package permissions**: The workflow has `packages: write` permission to push to GHCR
+- **Tag lifecycle**: Tags are immutable once pushed; use new versions for updates
+
+### Version Management
+- **Git tags MUST match upstream**: Always verify version exists at https://github.com/skaiworldwide-oss/agensgraph/releases
+- **No automatic updates**: This repository does not auto-detect new upstream versions
+- **Manual tagging required**: Create and push tags manually to trigger builds
+
+### Troubleshooting
+- **Workflow not triggering**: Ensure you pushed a tag starting with `v` (e.g., `v2.16.0`)
+- **Build failures**: Check if the upstream AgensGraph version exists and builds successfully
+- **Permission denied**: Verify the repository has the `packages: write` permission set
+- **Artifact name errors**: Platform names are converted to job indexes to avoid slash characters in artifact names
