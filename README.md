@@ -64,7 +64,20 @@ docker run -d \
 
 ### Using Task (Recommended)
 
-Install [Task](https://taskfile.dev/) and use the provided Taskfile:
+First, install [Task](https://taskfile.dev/):
+
+```bash
+# macOS
+brew install go-task
+
+# Linux
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+# Or with Go
+go install github.com/go-task/task/v3/cmd/task@latest
+```
+
+Then use the provided Taskfile:
 
 ```bash
 # Quick build for current platform

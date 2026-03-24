@@ -157,6 +157,19 @@ Available upstream versions include: v2.16.0 (latest), v2.15.0, v2.14.1, v2.13.1
 
 This repository includes a Taskfile.yaml for streamlined local development. [Task](https://taskfile.dev/) is a task runner similar to Make but uses YAML.
 
+### Installing Task
+
+```bash
+# macOS
+brew install go-task
+
+# Linux
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+# Or with Go
+go install github.com/go-task/task/v3/cmd/task@latest
+```
+
 ### Quick Reference
 
 ```bash
