@@ -8,21 +8,20 @@ Multiplatform Docker images for [AgensGraph](https://github.com/skaiworldwide-os
 
 The upstream AgensGraph images at [skaiworldwide/agensgraph](https://hub.docker.com/r/skaiworldwide/agensgraph) **only support AMD64**. This repository provides:
 
-✅ **Multi-architecture support** - linux/amd64, linux/arm64
-✅ **Apple Silicon compatibility** - Native ARM64 builds
-✅ **Automated builds** - CI/CD pipeline with version tracking
-✅ **Developer tooling** - Taskfile for local development
+- **Multi-architecture support** - linux/amd64, linux/arm64
+- **Apple Silicon compatibility** - Native ARM64 builds
+- **Automated builds** - CI/CD pipeline with version tracking
 
 ## Quick Start
 
 ```bash
-# Pull and run the latest version
-docker pull ghcr.io/nishantapatil3/agensgraph:v2.16.0
+# Pull and run
+docker pull ghcr.io/nishantapatil3/agensgraph:v2.17.0
 docker run -d \
   --name agensgraph \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  ghcr.io/nishantapatil3/agensgraph:v2.16.0
+  ghcr.io/nishantapatil3/agensgraph:v2.17.0
 
 # Connect with psql
 docker exec -it agensgraph psql -U postgres
@@ -32,7 +31,7 @@ docker exec -it agensgraph psql -U postgres
 
 This repository tracks official upstream releases from [skaiworldwide-oss/agensgraph](https://github.com/skaiworldwide-oss/agensgraph/releases).
 
-**Current latest**: v2.16.0
+**Current latest**: v2.17.0
 
 All released images: [ghcr.io/nishantapatil3/agensgraph](https://github.com/nishantapatil3/agensgraph/pkgs/container/agensgraph)
 
@@ -41,11 +40,7 @@ All released images: [ghcr.io/nishantapatil3/agensgraph](https://github.com/nish
 ### Pull the Image
 
 ```bash
-# Specific version (recommended)
-docker pull ghcr.io/nishantapatil3/agensgraph:v2.16.0
-
-# Or get the latest
-docker pull ghcr.io/nishantapatil3/agensgraph:latest
+docker pull ghcr.io/nishantapatil3/agensgraph:v2.17.0
 ```
 
 ### Run AgensGraph
@@ -55,7 +50,7 @@ docker run -d \
   --name agensgraph \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  ghcr.io/nishantapatil3/agensgraph:v2.16.0
+  ghcr.io/nishantapatil3/agensgraph:v2.17.0
 ```
 
 ### Connect to AgensGraph
@@ -64,85 +59,36 @@ docker run -d \
 # Using psql
 docker exec -it agensgraph psql -U postgres
 
-# Check AgensGraph version
+# Check version
 docker exec -it agensgraph psql -U postgres -c "SELECT version();"
 ```
 
-## Local Development
+## Building Locally
 
-### Using Task (Recommended)
-
-This repository includes a comprehensive [Taskfile](https://taskfile.dev/) with 27 tasks for building, testing, and managing Docker images.
-
-**Install Task:**
+### Single platform
 
 ```bash
-# macOS
-brew install go-task
-
-# Linux
-sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
-
-# Or with Go
-go install github.com/go-task/task/v3/cmd/task@latest
+docker build -t agensgraph:latest .
 ```
 
-**Common Tasks:**
+### Multiplatform
 
-```bash
-# Build and test
-task build                      # Build for current platform
-task test                       # Run basic tests
-task test:full                  # Full integration tests
-task verify                     # Complete verification
-
-# Run locally
-task run                        # Start container on port 5432
-task psql                       # Connect with psql
-task logs                       # View container logs
-task stop                       # Stop and remove container
-
-# Multiplatform builds
-task build:multiplatform        # Build for amd64 and arm64
-task build:version -- v2.15.0   # Build specific version
-
-# Version management
-task tag:create -- v2.17.0      # Create and push new tag
-task check:upstream             # Check upstream releases
-task check:builds               # Check CI/CD status
-
-# Help
-task --list                     # List all 27 tasks
-task help                       # Detailed help
-```
-
-### Using Docker Directly
-
-**Single platform:**
-```bash
-docker build --build-arg AGENSGRAPH_VERSION=v2.16.0 -t agensgraph:latest .
-```
-
-**Multiplatform:**
 ```bash
 docker buildx create --use
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg AGENSGRAPH_VERSION=v2.16.0 \
   -t agensgraph:latest \
   .
 ```
-
-**Note**: Always use official upstream versions from https://github.com/skaiworldwide-oss/agensgraph/releases
 
 ## CI/CD Pipeline
 
 Images are automatically built and published via GitHub Actions:
 
 **Triggers:**
-- Version tags (e.g., `v2.16.0`) → builds matching AgensGraph version
-- GitHub releases → builds and publishes
-- Manual workflow dispatch → on-demand builds
+- Version tags (e.g., `v2.17.0`) — builds and tags as that version
+- Main branch pushes — tags as `main` and `main-<sha>`
+- Manual workflow dispatch
 
 **Build Process:**
 1. Parallel builds for linux/amd64 and linux/arm64 using QEMU
@@ -150,42 +96,36 @@ Images are automatically built and published via GitHub Actions:
 3. Creates multi-arch manifest
 4. Publishes to GitHub Container Registry (GHCR)
 
-**Tags Created:**
-- `vX.Y.Z` - Full semantic version only (e.g., `v2.16.0`)
-
 Check build status: [GitHub Actions](https://github.com/nishantapatil3/agensgraph/actions)
 
 ## Repository Structure
 
 ```
 .
-├── Dockerfile                     # Multiplatform build with version arg
-├── Taskfile.yaml                  # Task runner (27 tasks)
+├── Dockerfile                     # Multiplatform build (postgres:17 + AgensGraph v2.17.0)
 ├── .github/workflows/
 │   └── build-multiplatform.yml   # CI/CD pipeline
-├── CLAUDE.md                      # Detailed project documentation
 └── README.md                      # This file
 ```
 
-## Contributing
+## Releasing a New Version
 
-1. **Check upstream releases**: Always verify version exists at https://github.com/skaiworldwide-oss/agensgraph/releases
-2. **Create a tag**: `task tag:create -- vX.Y.Z`
-3. **Monitor build**: `task check:builds` or `task watch:build`
-4. **Test locally**: `task build && task test:full`
+1. Update the version in `Dockerfile` (the `git clone --branch` line)
+2. Commit and push to main
+3. Create and push a tag:
+   ```bash
+   git tag -a v2.17.0 -m "Release AgensGraph v2.17.0"
+   git push origin v2.17.0
+   ```
+4. The workflow builds and publishes `ghcr.io/nishantapatil3/agensgraph:v2.17.0`
 
-## Documentation
-
-- **[CLAUDE.md](./CLAUDE.md)** - Comprehensive project documentation, architecture, workflows, and troubleshooting
-- **[Taskfile.yaml](./Taskfile.yaml)** - All available development tasks
-- **[Upstream Releases](https://github.com/skaiworldwide-oss/agensgraph/releases)** - Official AgensGraph versions
+Always verify the version exists upstream: https://github.com/skaiworldwide-oss/agensgraph/releases
 
 ## Links
 
 - **Images**: [ghcr.io/nishantapatil3/agensgraph](https://github.com/nishantapatil3/agensgraph/pkgs/container/agensgraph)
 - **Source**: [github.com/nishantapatil3/agensgraph](https://github.com/nishantapatil3/agensgraph)
 - **Upstream**: [github.com/skaiworldwide-oss/agensgraph](https://github.com/skaiworldwide-oss/agensgraph)
-- **Build Status**: [GitHub Actions](https://github.com/nishantapatil3/agensgraph/actions)
 
 ## License
 

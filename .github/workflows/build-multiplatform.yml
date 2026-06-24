@@ -34,19 +34,13 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Tag build: use tag version for both build and docker tag
             VERSION=${GITHUB_REF#refs/tags/}
-            echo "agensgraph_version=${VERSION}" >> $GITHUB_OUTPUT
             echo "docker_tag=${VERSION}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            # Main branch build: use default version for build, tag as main
-            echo "agensgraph_version=v2.16.0" >> $GITHUB_OUTPUT
             echo "docker_tag=main" >> $GITHUB_OUTPUT
             echo "docker_tag_sha=main-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
           else
-            # Fallback for manual dispatch
-            echo "agensgraph_version=v2.16.0" >> $GITHUB_OUTPUT
-            echo "docker_tag=v2.16.0" >> $GITHUB_OUTPUT
+            echo "docker_tag=v2.17.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Docker meta
@@ -77,8 +71,6 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            AGENSGRAPH_VERSION=${{ steps.version.outputs.agensgraph_version }}
           outputs: type=image,name=ghcr.io/${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -116,19 +108,13 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Tag build: use tag version for both build and docker tag
             VERSION=${GITHUB_REF#refs/tags/}
-            echo "agensgraph_version=${VERSION}" >> $GITHUB_OUTPUT
             echo "docker_tag=${VERSION}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            # Main branch build: use default version for build, tag as main
-            echo "agensgraph_version=v2.16.0" >> $GITHUB_OUTPUT
             echo "docker_tag=main" >> $GITHUB_OUTPUT
             echo "docker_tag_sha=main-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
           else
-            # Fallback for manual dispatch
-            echo "agensgraph_version=v2.16.0" >> $GITHUB_OUTPUT
-            echo "docker_tag=v2.16.0" >> $GITHUB_OUTPUT
+            echo "docker_tag=v2.17.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Login to GitHub Container Registry
