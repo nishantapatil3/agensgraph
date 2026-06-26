@@ -111,6 +111,7 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             echo "docker_tag=${VERSION}" >> $GITHUB_OUTPUT
+            echo "docker_tag_latest=latest" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
             echo "docker_tag=main" >> $GITHUB_OUTPUT
             echo "docker_tag_sha=main-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
@@ -132,6 +133,9 @@ jobs:
           TAGS="-t ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ steps.version.outputs.docker_tag }}"
           if [[ -n "${{ steps.version.outputs.docker_tag_sha }}" ]]; then
             TAGS="$TAGS -t ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ steps.version.outputs.docker_tag_sha }}"
+          fi
+          if [[ -n "${{ steps.version.outputs.docker_tag_latest }}" ]]; then
+            TAGS="$TAGS -t ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ steps.version.outputs.docker_tag_latest }}"
           fi
 
           # Create manifest
